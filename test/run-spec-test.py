@@ -72,13 +72,13 @@ log = open("spec-test.log","w+")
 log.write("======================\n")
 
 def warning(msg, force=False):
-    log.write("Warning: " + msg + "\n")
+    log.write(f"Warning: {msg}" + "\n")
     log.flush()
     if args.verbose or force:
         print(f"{ansi.WARNING}Warning:{ansi.ENDC} {msg}")
 
 def fatal(msg):
-    log.write("Fatal: " + msg + "\n")
+    log.write(f"Fatal: {msg}" + "\n")
     log.flush()
     print(f"{ansi.FAIL}Fatal:{ansi.ENDC} {msg}")
     sys.exit(1)
@@ -112,9 +112,9 @@ def formatValueRaw(num, t):
     return str(num)
 
 def formatValueHex(num, t):
-    if t == "f32" or t == "i32":
+    if t in ["f32", "i32"]:
         return "{0:#0{1}x}".format(int(num), 8+2)
-    elif t == "f64" or t == "i64":
+    elif t in ["f64", "i64"]:
         return "{0:#0{1}x}".format(int(num), 16+2)
     else:
         return str(num)
@@ -129,7 +129,7 @@ def formatValueFloat(num, t):
 
     result = "{0:.{1}f}".format(binaryToFloat(num, t), s).rstrip('0')
     if result.endswith('.'):
-        result = result + '0'
+        result += '0'
     if len(result) > s*2:
         result = "{0:.{1}e}".format(binaryToFloat(num, t), s)
     return result
@@ -148,7 +148,7 @@ if args.format == "fp":
 # Spec tests preparation
 #
 
-spec_dir = os.path.join(".", ".spec-" + safe_fn(args.spec))
+spec_dir = os.path.join(".", f".spec-{safe_fn(args.spec)}")
 
 if not (os.path.isdir(spec_dir)):
     from io import BytesIO
@@ -216,8 +216,8 @@ class Wasm3():
             print(f"wasm3: Could not start: {e}")
 
     def restart(self):
-        print(f"wasm3: Restarting")
-        for i in range(10):
+        print("wasm3: Restarting")
+        for _ in range(10):
             try:
                 self.run()
                 try:
@@ -270,7 +270,7 @@ class Wasm3():
                 buff = buff + data.decode("utf-8")
                 idx = buff.rfind(token)
                 if idx >= 0:
-                    return buff[0:idx].strip()
+                    return buff[:idx].strip()
             except Empty:
                 pass
         else:
@@ -311,7 +311,7 @@ def normalizeResults(values):
     for x in values:
         t = x["type"]
         v = x["value"]
-        if t == "f32" or t == "f64":
+        if t in ["f32", "f64"]:
             if v == "nan:canonical" or v == "nan:arithmetic" or math.isnan(binaryToFloat(v, t)):
                 x["value"] = "nan:any"
             else:
@@ -400,16 +400,16 @@ def runInvoke(test):
     if not actual:
         result = re.findall(r'Result: (.*?)$', "\n" + output + "\n", re.MULTILINE)
         if len(result) > 0:
-            actual = "result " + result[-1]
+            actual = f"result {result[-1]}"
             actual_val = result[0]
     if not actual:
         result = re.findall(r'Error: \[trap\] (.*?) \(', "\n" + output + "\n", re.MULTILINE)
         if len(result) > 0:
-            actual = "trap " + result[-1]
+            actual = f"trap {result[-1]}"
     if not actual:
         result = re.findall(r'Error: (.*?)$', "\n" + output + "\n", re.MULTILINE)
         if len(result) > 0:
-            actual = "error " + result[-1]
+            actual = f"error {result[-1]}"
     if not actual:
         actual = "<No Result>"
         force_fail = True
@@ -432,14 +432,14 @@ def runInvoke(test):
             expect = "result <Empty Stack>"
         else:
             if actual_val is not None:
-                actual = "result " + combineResults(parseResults(actual_val))
-            expect = "result " + combineResults(normalizeResults(test.expected))
+                actual = f"result {combineResults(parseResults(actual_val))}"
+            expect = f"result {combineResults(normalizeResults(test.expected))}"
 
     elif "expected_trap" in test:
         if test.expected_trap in trapmap:
             test.expected_trap = trapmap[test.expected_trap]
 
-        expect = "trap " + str(test.expected_trap)
+        expect = f"trap {str(test.expected_trap)}"
     elif "expected_anything" in test:
         expect = "<Anything>"
     else:
@@ -452,7 +452,7 @@ def runInvoke(test):
         print(f"Expected: {ansi.OKGREEN}{expect}{ansi.ENDC}")
         print(f"Actual:   {ansi.WARNING}{actual}{ansi.ENDC}")
         if args.show_logs and len(output):
-            print(f"Log:")
+            print("Log:")
             print(output)
 
     log.write(f"{test.source}\t|\t{test.wasm} {test.action.field}({', '.join(displayArgs)})\t=>\t\t")
@@ -477,9 +477,7 @@ else:
     jsonFiles += glob.glob(os.path.join(spec_dir, "proposals", "sign-extension-ops", "*.json"))
     jsonFiles += glob.glob(os.path.join(spec_dir, "proposals", "nontrapping-float-to-int-conversions", "*.json"))
 
-jsonFiles = list(map(lambda x: os.path.relpath(x, scriptDir), jsonFiles))
-jsonFiles.sort()
-
+jsonFiles = sorted(map(lambda x: os.path.relpath(x, scriptDir), jsonFiles))
 for fn in jsonFiles:
     with open(fn, encoding='utf-8') as f:
         data = json.load(f)
@@ -492,7 +490,7 @@ for fn in jsonFiles:
     for cmd in data["commands"]:
         test = dotdict()
         test.line = int(cmd["line"])
-        test.source = wast_source + ":" + str(test.line)
+        test.source = f"{wast_source}:{test.line}"
         test.wasm = wasm_module
         test.type = cmd["type"]
 
@@ -507,18 +505,19 @@ for fn in jsonFiles:
 
                 wasm3.init()
 
-                res = wasm3.load(wasm_fn)
-                if res:
+                if res := wasm3.load(wasm_fn):
                     warning(res)
             except Exception as e:
                 pass #fatal(str(e))
 
-        elif (  test.type == "action" or
-                test.type == "assert_return" or
-                test.type == "assert_trap" or
-                test.type == "assert_exhaustion" or
-                test.type == "assert_return_canonical_nan" or
-                test.type == "assert_return_arithmetic_nan"):
+        elif test.type in [
+            "action",
+            "assert_return",
+            "assert_trap",
+            "assert_exhaustion",
+            "assert_return_canonical_nan",
+            "assert_return_arithmetic_nan",
+        ]:
 
             if args.line and test.line != args.line:
                 continue
@@ -535,13 +534,8 @@ for fn in jsonFiles:
                 test.expected[0]["value"] = "nan:arithmetic"
             elif test.type == "assert_trap":
                 test.expected_trap = cmd["text"]
-            elif test.type == "assert_exhaustion":
-                test.expected_trap = "stack overflow"
             else:
-                stats.skipped += 1
-                warning(f"Skipped {test.source} ({test.type} not implemented)")
-                continue
-
+                test.expected_trap = "stack overflow"
             test.action = dotdict(cmd["action"])
             if test.action.type == "invoke":
 
@@ -559,14 +553,11 @@ for fn in jsonFiles:
                 warning(f"Skipped {test.source} (unknown action type '{test.action.type}')")
 
 
-        # These are irrelevant
-        elif (test.type == "assert_invalid" or
-              test.type == "assert_malformed" or
-              test.type == "assert_uninstantiable"):
-            pass
-
-        # Others - report as skipped
-        else:
+        elif test.type not in [
+            "assert_invalid",
+            "assert_malformed",
+            "assert_uninstantiable",
+        ]:
             stats.skipped += 1
             warning(f"Skipped {test.source} ('{test.type}' not implemented)")
 
@@ -590,7 +581,7 @@ elif stats.success > 0:
     if stats.skipped > 0:
         print(f"{ansi.WARNING} ({stats.skipped} tests skipped){ansi.OKGREEN}")
     print(f"======================={ansi.ENDC}")
-    
+
 elif stats.total_run == 0:
     print("Error: No tests run")
     sys.exit(1)

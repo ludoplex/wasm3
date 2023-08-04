@@ -57,10 +57,10 @@ def build_target(target):
 
 def build_wasi(target):
     WASI_VERSION = str(target['sdk'])
-    WASI_VERSION_FULL = WASI_VERSION + ".0"
     WASI_SDK_PATH = f"{os.getcwd()}/.toolchains/{target['arch']}"
     if not Path(f"{WASI_SDK_PATH}/bin").exists():
         print(f"Downloading {target['name']} toolchain")
+        WASI_VERSION_FULL = f"{WASI_VERSION}.0"
         WASI_TAR = f"wasi-sdk-{WASI_VERSION_FULL}-linux.tar.gz"
         run(f"""
             mkdir -p .toolchains
@@ -98,9 +98,9 @@ def build_musl(target):
             rm {tar_name}
             """)
 
-    if not 'cflags' in target:
+    if 'cflags' not in target:
         target['cflags'] = ""
-    if not 'runner' in target:
+    if 'runner' not in target:
         target['runner'] = ""
 
     wasm3_binary = f"build-cross/wasm3-{target['name']}"
@@ -139,8 +139,6 @@ def run_tests(wasm3_binary, target, wasm3_cmd):
         except Exception as e:
             print(f"Testing {target['name']} target (spec): failed")
             print(e)
-            pass
-
     test_wasi_ok = Path(f"build-cross/{target['name']}/.test-wasi-ok")
     if RETEST or not test_wasi_ok.exists():
         with contextlib.suppress(FileNotFoundError):
@@ -155,7 +153,6 @@ def run_tests(wasm3_binary, target, wasm3_cmd):
         except Exception as e:
             print(f"Testing {target['name']} target (WASI): failed")
             print(e)
-            pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
